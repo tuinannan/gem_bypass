@@ -1,0 +1,15 @@
+gem5 Simulator System.  http://gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 compiled Jun  6 2019 22:50:05
+gem5 started Jun  6 2019 22:58:32
+gem5 executing on liu-MS-7996, pid 590
+command line: /home/liu/gemo/gem5//build/X86_MESI_Two_Level/gem5.opt --outdir=/home/liu/gemo/gem5//my_script/output/X86_MESI_Two_Level/2_core/ubuntu-16.img/vmlinux_4.19.0/541.leela_502.gcc_readfile/ /home/liu/gemo/gem5//configs/example/fs.py --checkpoint-dir=/home/liu/gemo/gem5//my_script/checkpoints/X86_MESI_Two_Level/2_core --script /home/liu/gemo/gem5/my_script/readfiles/541.leela_502.gcc_readfile --kernel vmlinux_4.19.0 --disk-image ubuntu-16.img --cpu-type=DerivO3CPU --restore-with-cpu=AtomicSimpleCPU --maxinsts=100000000 --mem-size 2GB --num-cpus 2 --caches --l2cache --num-dirs=2 --num-l2caches=2 --num-l3caches=2 --l1d_size=32kB --l1i_size=32kB --l2_size=2MB --l3_size=2MB --l1d_assoc=8 --l1i_assoc=8 --l2_assoc=16 --l3_assoc=8 --ruby --protected_id 1 -r 1 --command-line 'earlyprintk=ttyS0 console=ttyS0 console_msg_format=syslog lpj=7999923 panic=-1 printk.devkmsg=on printk.time=y rw root=/dev/sda2'
+
+Global frequency set at 1000000000000 ticks per second
+      0: rtc: Real-time clock set to Sun Jan  1 00:00:00 2012
+Switch at curTick count:10000
+Switched CPUS @ tick 2364990815000
+switching cpus
+**** REAL SIMULATION ****
+Exiting @ tick 2424276388000 because a thread reached the max instruction count

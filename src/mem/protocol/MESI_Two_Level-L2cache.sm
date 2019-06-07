@@ -90,10 +90,11 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     // events initiated by the local L1s
     L1_GET_INSTR,            desc="a L1I GET INSTR request for a block maped to us";
     //yanan for protected instruction and data
-    L1_GET_INSTRP,           desc="...";
+    L1_GET_INSTRP,           desc="no one can force yanan to write comment";
     L1_GETS,                 desc="a L1D GETS request for a block maped to us";
     L1_GETSP,                desc="...";
     L1_GETX,                 desc="a L1D GETX request for a block maped to us";
+    L1_GETXP,                desc="...";
     L1_UPGRADE,                 desc="a L1D GETX request for a block maped to us";
 
     L1_PUTX,                 desc="L1 replacing data";
@@ -108,6 +109,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     //yanan
     Mem_Datap,    desc="...";
     Mem_Ack,     desc="ack from memory", format="!r";
+    //yanan
+    Mem_Ackp,     desc="...";
 
     // M->S data writeback
     WB_Data,  desc="data from L1";
@@ -117,7 +120,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
     Unblock, desc="Unblock from L1 requestor";
     Exclusive_Unblock, desc="Unblock from L1 requestor";
-
+    //yanan
+    Exclusive_Unblockp, desc="no one can force yanan to write comment";
     MEM_Inv, desc="Invalidation from directory";
   }
 
@@ -299,6 +303,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
       return Event:L1_GETSP;
     } else if(type == CoherenceRequestType:GET_INSTR) {
       return Event:L1_GET_INSTRP;
+    } else if(type == CoherenceRequestType:GETX) {
+      return Event:L1_GETXP; 
     } else {
       error("Invalid L1 forwarded request type");
     }
@@ -332,7 +338,13 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
         assert(in_msg.Destination.isElement(machineID));
         if (in_msg.Type == CoherenceResponseType:EXCLUSIVE_UNBLOCK) {
-          trigger(Event:Exclusive_Unblock, in_msg.addr, cache_entry, tbe);
+           if(in_msg.ProtectFlag) {
+               DPRINTF(testflag, "unblock in l2 %llx\n", in_msg.addr);
+               Entry cache_entryp := getCacheEntryp(in_msg.addr);
+               trigger(Event:Exclusive_Unblockp, in_msg.addr, cache_entryp,
+                          tbe);
+           }else { 
+               trigger(Event:Exclusive_Unblock, in_msg.addr, cache_entry, tbe);}
         } else if (in_msg.Type == CoherenceResponseType:UNBLOCK) {
           trigger(Event:Unblock, in_msg.addr, cache_entry, tbe);
         } else {
@@ -383,7 +395,12 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
                 
           } else if(in_msg.Type == CoherenceResponseType:MEMORY_ACK) {
               DPRINTF(testflag, "mem 11\n");
-              trigger(Event:Mem_Ack, in_msg.addr, cache_entry, tbe);
+              Entry cache_entryp := getCacheEntryp(in_msg.addr);
+              if(is_valid(cache_entryp)) {
+                  trigger(Event:Mem_Ackp, in_msg.addr,  cache_entryp, tbe);
+              } else {
+                  trigger(Event:Mem_Ack, in_msg.addr, cache_entry, tbe);
+              }
           } else if(in_msg.Type == CoherenceResponseType:INV) {
               DPRINTF(testflag, "mem 22\n");
               if(tbe.protect_flag) {
@@ -448,9 +465,9 @@ in_msg.Type, in_msg.addr);
            //yanan
            }
            */ 
-           else if (L2cache.checkProtect(machineIDToNodeID(in_msg.Requestor)) &&
-                //!L2cache.checkOccu(in_msg.addr) &&
-                (in_msg.Type != CoherenceRequestType:GETX)){
+           else if (L2cache.checkProtect(machineIDToNodeID(in_msg.Requestor))
+                //!L2cache.checkOccu(in_msg.addr)
+                ){
             //L2cache.setBypassAddr(in_msg.addr);
             Entry cache_entryp := getCacheEntryp(in_msg.addr);
             DPRINTF(testflag, "c4\n");
@@ -500,6 +517,13 @@ in_msg.Type, in_msg.addr);
     DPRINTF(testflag, "np_mem\n");
   }
 
+  action(test_getxp, "tgx", desc="..") {
+    DPRINTF(testflag, "getxp %llx\n", address);
+  }
+
+  action(test_unblock, "tgu", desc="..") {
+    DPRINTF(testflag, "unblockp %llx\n", address);
+  }
   action(a_issueFetchToMemory, "a", desc="fetch data from memory") {
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(DirRequestL2Network_out, RequestMsg, l2_request_latency) {
@@ -688,6 +712,23 @@ in_msg.Type, in_msg.addr);
     }
   }
 
+  //yanan
+  action(eep_sendDataToGetXRequestor, "eepp", desc="Send data from cache to GetX ID") {
+    enqueue(responseL2Network_out, ResponseMsg, to_l1_latency) {
+      assert(is_valid(tbe));
+      assert(is_valid(cache_entry));
+      out_msg.addr := address;
+      out_msg.Type := CoherenceResponseType:DATA;
+      out_msg.Sender := machineID;
+      out_msg.Destination.add(tbe.L1_GetX_ID);
+      DPRINTF(RubySlicc, "%s\n", out_msg.Destination);
+      out_msg.DataBlk := cache_entry.DataBlk;
+      DPRINTF(RubySlicc, "Address: %#x, Destination: %s, DataBlock: %s\n",
+              out_msg.addr, out_msg.Destination, out_msg.DataBlk);
+      out_msg.MessageSize := MessageSizeType:Response_Data;
+      out_msg.ProtectFlag := true;
+    }
+  }
   action(f_sendInvToSharers, "f", desc="invalidate sharers for L2 replacement") {
     enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
       assert(is_valid(cache_entry));
@@ -1105,6 +1146,22 @@ L1_GET_INSTRP, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
     jj_popL1RequestQueue;
   }
 
+  //yanan
+  transition(NP, L1_GETXP, IM) {
+    test_getxp;
+    pp_allocateL2CacheBlock;
+    //ll_clearSharers;
+     //nn_addSharer;
+    //yanan
+    p_allocateTBE;
+    //I think here we should add occupy number since it's just a transient
+    //occupication, but we will see
+    //checkProtect;
+    xx_recordGetXL1ID;
+    a_issueFetchToMemory;
+    uu_profileMiss;
+    jj_popL1RequestQueue;
+  }
 
   // transitions from IS/IM
 
@@ -1140,7 +1197,20 @@ L1_GET_INSTRP, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
     s_deallocateTBE;
     o_popIncomingResponseQueue;
   }
-  
+ 
+  //yanan
+  transition(IM, Mem_Datap, MT_MB) {
+    //yanan
+    //test_mem;
+    p_writeDataToCache;
+    eep_sendDataToGetXRequestor;
+    //s_deallocateTBE;
+    o_popIncomingResponseQueue;
+  }
+
+
+
+ 
   //yanan currently just assume other wierd situation won't happen, but if it
   //happens just change this accordingly later
   transition(NP, Mem_Data) {
@@ -1292,6 +1362,16 @@ L1_GET_INSTRP, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
     kd_wakeUpDependents;
   }
 
+  //yanan
+  transition(MT_MB, Exclusive_Unblockp, M_I) {
+    //for now I think there's no point to mark exclusive 
+    test_unblock;
+    k_popUnblockQueue;
+    kd_wakeUpDependents;
+    c_exclusiveReplacement;
+    //pp_deallocateL2CacheBlockp;
+  }   
+  
   transition(MT_IIB, {L1_PUTX, L1_PUTX_old}){
     zz_stallAndWaitL1RequestQueue;
   }
@@ -1320,7 +1400,7 @@ L1_GET_INSTRP, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
 
   // writeback states
   transition({I_I, S_I, MT_I, MCT_I, M_I}, {L1_GETX, L1_UPGRADE, L1_GETS,
-L1_GET_INSTR, L1_GETSP, L1_GET_INSTRP}) {
+L1_GET_INSTR, L1_GETSP, L1_GET_INSTRP, L1_GETXP}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
@@ -1378,5 +1458,13 @@ L1_GET_INSTR, L1_GETSP, L1_GET_INSTRP}) {
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
+  }
+
+  //yanan
+  transition(M_I, Mem_Ackp, NP) {
+    s_deallocateTBE;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents;
+    pp_deallocateL2CacheBlockp;
   }
 }

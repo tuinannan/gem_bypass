@@ -856,6 +856,22 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     }
   }
 
+  //yanan
+  action(jjp_sendExclusiveUnblock, "\jp", desc="send unblock to the L2 cache") {
+    enqueue(unblockNetwork_out, ResponseMsg, to_l2_latency) {
+      out_msg.addr := address;
+      out_msg.Type := CoherenceResponseType:EXCLUSIVE_UNBLOCK;
+      out_msg.Sender := machineID;
+      out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
+                          l2_select_low_bit, l2_select_num_bits, intToID(0)));
+      out_msg.MessageSize := MessageSizeType:Response_Control;
+      out_msg.DataBlk := cache_entry.DataBlk;
+      out_msg.ProtectFlag := true;
+      DPRINTF(RubySlicc, "%#x\n", address);
+
+    }
+  }
+
   action(dg_invalidate_sc, "dg",
          desc="Invalidate store conditional as the cache lost permissions") {
     sequencer.invalidateSC(address);
@@ -1458,6 +1474,17 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     s_deallocateTBE;
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
+  }
+
+  //yanan
+  transition(IM, Data_all_Acksp, NP) {
+    u_writeDataToL1Cache;
+    hhx_store_hit;
+    jjp_sendExclusiveUnblock;
+    s_deallocateTBE;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents;
+    yy_deallocateL1CacheBlock;
   }
 
   transition(PF_IM, Data_all_Acks, M) {
